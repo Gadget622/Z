@@ -1,0 +1,20 @@
+{
+    "files": {
+        "DATA_CSV": "Z data.csv",
+        "TEMP_CSV": "temp.csv",
+        "TEMP_TXT": "Z temp.txt"
+    },
+    "settings": {
+        "TIME_INTERVAL": 10,
+        "PERIODIC_ENTRIES_ENABLED": false,
+        "PERIODIC_ENTRIES_INTERVAL": 5
+    },
+    "commands": {
+        "SLASH_PREFIX": "/",
+        "SLASH_PREFIX_ALT": "//",
+        "SLASH_CSV_PREFIX": "//",
+        "TOKEN_PREFIX": "$",
+        "TOKEN_PREFIX_ALT": "$",
+        "TOKEN_CSV_PREFIX": "$"
+    }
+}

@@ -1,0 +1,8 @@
+__pycache__
+*.pyc
+*.pyo
+temp.csv
+Z data.csv
+Z temp.txt
+Z.csv
+Z.txt
