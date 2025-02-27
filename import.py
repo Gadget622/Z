@@ -4,13 +4,46 @@ import csv
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
+import sys
+
+# Import helper for file operations
+try:
+    import file_helper
+except ImportError:
+    # Display error in a tkinter dialog
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showerror(
+        "Module Error",
+        "Failed to import file_helper module.\n\nPlease ensure file_helper.py exists in the application directory."
+    )
+    root.destroy()
+    sys.exit(1)
 
 # Import configuration from config module
 try:
-    from config import DATA_CSV
+    from config import DATA_CSV, ConfigError
 except ImportError:
-    # Fallback defaults if config module is missing
-    DATA_CSV = "Z data.csv"
+    # Display error in a tkinter dialog
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showerror(
+        "Configuration Error",
+        "Failed to import configuration module.\n\nPlease ensure config.py exists in the application directory."
+    )
+    root.destroy()
+    sys.exit(1)
+except ConfigError as e:
+    # Display the specific config error in a tkinter dialog
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showerror(
+        "Configuration Error",
+        f"{e}\n\nThe application will now prompt for the necessary information."
+    )
+    # Will handle by prompting user for configuration
+    CONFIG_ERROR = str(e)
+    root.deiconify()  # Show the root for user input
 
 class ZImporter:
     def __init__(self, root):
@@ -18,9 +51,16 @@ class ZImporter:
         self.root.title("Z Import Tool")
         self.root.geometry("500x300")
         
+        # Handle config errors by prompting user if needed
+        if 'CONFIG_ERROR' in globals():
+            self.handle_config_error(CONFIG_ERROR)
+        
         # Configure the grid
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(3, weight=1)
+        
+        # Get the directory where the script is located
+        self.script_dir = os.path.dirname(os.path.abspath(__file__))
         
         # File selection
         self.file_frame = ttk.Frame(root, padding="10")
@@ -74,6 +114,43 @@ class ZImporter:
         # File path
         self.file_path = None
         
+    def handle_config_error(self, error_message):
+        """Handle configuration errors by prompting the user for information"""
+        self.root.title("Z Importer - Configuration Setup")
+        
+        if "DATA_CSV" in error_message:
+            # Prompt user for a data file name
+            filename = file_helper.prompt_for_filename(
+                self.root,
+                "Data File Configuration",
+                "Please enter a name for your data file:"
+            )
+            
+            if filename is None:  # User canceled
+                messagebox.showerror(
+                    "Configuration Required",
+                    "A data file name is required for the application to function."
+                )
+                self.root.quit()
+                sys.exit(1)
+            
+            # Update global variable
+            global DATA_CSV
+            DATA_CSV = filename
+            
+            # Update config file
+            success = file_helper.update_config_file("DATA_CSV", filename)
+            if success:
+                messagebox.showinfo(
+                    "Configuration Updated",
+                    f"Data file has been set to: {filename}"
+                )
+            else:
+                messagebox.showwarning(
+                    "Configuration Warning",
+                    f"Data file will be set to {filename} for this session, but the configuration file could not be updated."
+                )
+        
     def browse_file(self):
         """Open file dialog to select a text file"""
         file_path = filedialog.askopenfilename(
@@ -98,14 +175,66 @@ class ZImporter:
             return
         
         try:
-            # Get the directory of the script
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            csv_filename = os.path.join(script_dir, DATA_CSV)
+            # Get the output CSV path
+            csv_filename = os.path.join(self.script_dir, DATA_CSV)
             
             # Check if CSV exists, create it if not
             csv_exists = os.path.exists(csv_filename)
+            if not csv_exists:
+                try:
+                    with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+                        writer = csv.writer(csvfile)
+                        writer.writerow(['timestamp', 'text'])
+                    self.log(f"Created new CSV file: {DATA_CSV}")
+                    csv_exists = True
+                except Exception as e:
+                    self.log(f"Error creating CSV file: {str(e)}")
+                    
+                    # Handle file creation error
+                    response = messagebox.askquestion(
+                        "File Creation Error",
+                        f"Could not create file {DATA_CSV}: {e}\n\nWould you like to specify a different filename?",
+                        icon='warning'
+                    )
+                    
+                    if response == 'yes':
+                        new_filename = file_helper.prompt_for_filename(
+                            self.root,
+                            "Select New Data File",
+                            "Please enter a name for your data file:"
+                        )
+                        
+                        if new_filename:
+                            # Update global variable
+                            global DATA_CSV
+                            DATA_CSV = new_filename
+                            
+                            # Update config file
+                            file_helper.update_config_file("DATA_CSV", new_filename)
+                            
+                            # Update csv_filename
+                            csv_filename = os.path.join(self.script_dir, new_filename)
+                            
+                            # Try to create the new file
+                            try:
+                                with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+                                    writer = csv.writer(csvfile)
+                                    writer.writerow(['timestamp', 'text'])
+                                
+                                self.log(f"Created new CSV file: {new_filename}")
+                                csv_exists = True
+                            except Exception as e2:
+                                self.log(f"Error creating new CSV file: {str(e2)}")
+                                return
+                        else:
+                            # User canceled
+                            return
+                    else:
+                        # User chose not to specify new filename
+                        return
             
             # Read the text file
+            self.log(f"Reading input file: {self.file_path}")
             with open(self.file_path, 'r', encoding='utf-8') as file:
                 lines = file.readlines()
             
@@ -134,76 +263,163 @@ class ZImporter:
             if not entries:
                 messagebox.showwarning("No Valid Entries", "No valid entries found in the file.")
                 return
-                
+            
+            # Process entries based on sort option
+            valid_count = len(entries)
+            self.log(f"Found {valid_count} valid entries to import")
+            
+            # Create a temp directory for backups
+            temp_dir = file_helper.setup_temp_directory()
+            
             # Sort entries if option is selected
             sort_entries = self.sort_var.get()
             if sort_entries:
                 self.log("Sorting entries by timestamp...")
                 
-                # If CSV already exists, read it first
-                if csv_exists:
+                try:
+                    # If CSV already exists, read it first
+                    if csv_exists:
+                        try:
+                            # Create a backup of the original file
+                            backup_filename = os.path.join(temp_dir, f"backup_{DATA_CSV}_{file_helper.generate_temp_filename()}")
+                            import shutil
+                            shutil.copy2(csv_filename, backup_filename)
+                            self.log(f"Created backup at: {backup_filename}")
+                            
+                            # Read existing file
+                            df_existing = pd.read_csv(csv_filename)
+                            
+                            # Convert entries to DataFrame
+                            df_new = pd.DataFrame(entries, columns=['timestamp', 'text'])
+                            
+                            # Combine existing and new data
+                            df_combined = pd.concat([df_existing, df_new], ignore_index=True)
+                            
+                            # Sort by timestamp
+                            df_combined = df_combined.sort_values('timestamp')
+                            
+                            # Write back to CSV
+                            df_combined.to_csv(csv_filename, index=False)
+                            
+                            self.log(f"Added {len(entries)} entries to existing CSV file")
+                            self.log(f"Total entries after import: {len(df_combined)}")
+                            
+                        except Exception as e:
+                            self.log(f"Error processing existing CSV: {str(e)}")
+                            
+                            # Try to use a temp file if the main file is inaccessible
+                            temp_filepath = os.path.join(temp_dir, file_helper.generate_temp_filename())
+                            
+                            df_new = pd.DataFrame(entries, columns=['timestamp', 'text'])
+                            df_new = df_new.sort_values('timestamp')
+                            df_new.to_csv(temp_filepath, index=False)
+                            
+                            self.log(f"Could not update main CSV file. Data saved to: {temp_filepath}")
+                            messagebox.showwarning(
+                                "Import Warning",
+                                f"Could not update the main CSV file ({DATA_CSV}). Your imported data has been saved to a temporary file."
+                            )
+                            return
+                    else:
+                        # If CSV doesn't exist or couldn't be read, create new
+                        entries.sort(key=lambda x: x[0])  # Sort by timestamp
+                        
+                        with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+                            writer = csv.writer(csvfile)
+                            writer.writerow(['timestamp', 'text'])  # Header
+                            writer.writerows(entries)
+                        
+                        self.log(f"Created new CSV file with {len(entries)} sorted entries")
+                except Exception as e:
+                    self.log(f"Error during import: {str(e)}")
+                    
+                    # Save to temp file as last resort
+                    temp_filepath = os.path.join(temp_dir, file_helper.generate_temp_filename())
+                    
                     try:
-                        df_existing = pd.read_csv(csv_filename)
+                        with open(temp_filepath, 'w', newline='', encoding='utf-8') as csvfile:
+                            writer = csv.writer(csvfile)
+                            writer.writerow(['timestamp', 'text'])  # Header
+                            writer.writerows(sorted(entries, key=lambda x: x[0]))
                         
-                        # Convert entries to DataFrame
-                        df_new = pd.DataFrame(entries, columns=['timestamp', 'text'])
-                        
-                        # Combine existing and new data
-                        df_combined = pd.concat([df_existing, df_new], ignore_index=True)
-                        
-                        # Sort by timestamp
-                        df_combined = df_combined.sort_values('timestamp')
-                        
-                        # Write back to CSV
-                        df_combined.to_csv(csv_filename, index=False)
-                        
-                        self.log(f"Added {len(entries)} entries to existing CSV file")
-                        self.log(f"Total entries after import: {len(df_combined)}")
-                        
-                    except Exception as e:
-                        self.log(f"Error processing existing CSV: {str(e)}")
-                        # Fallback to creating new file
-                        csv_exists = False
-                
-                # If CSV doesn't exist or couldn't be read, create new
-                if not csv_exists:
-                    entries.sort(key=lambda x: x[0])  # Sort by timestamp
-                    
-                    with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow(['timestamp', 'text'])  # Header
-                        writer.writerows(entries)
-                    
-                    self.log(f"Created new CSV file with {len(entries)} sorted entries")
+                        self.log(f"Error importing to main file. Data saved to: {temp_filepath}")
+                        messagebox.showwarning(
+                            "Import Warning",
+                            f"An error occurred during import: {e}\n\nYour data has been saved to a temporary file."
+                        )
+                    except Exception as e2:
+                        self.log(f"Critical error: {str(e2)}")
+                        messagebox.showerror(
+                            "Critical Error",
+                            f"Failed to save data to any location: {e2}\n\nYour data could not be imported."
+                        )
+                    return
             else:
                 # Append to existing or create new without sorting
-                mode = 'a' if csv_exists else 'w'
-                with open(csv_filename, mode, newline='', encoding='utf-8') as csvfile:
-                    writer = csv.writer(csvfile)
-                    
-                    # Write header if new file
-                    if not csv_exists:
-                        writer.writerow(['timestamp', 'text'])
+                try:
+                    mode = 'a' if csv_exists else 'w'
+                    with open(csv_filename, mode, newline='', encoding='utf-8') as csvfile:
+                        writer = csv.writer(csvfile)
                         
-                    writer.writerows(entries)
-                
-                self.log(f"Added {len(entries)} entries to CSV (unsorted)")
+                        # Write header if new file
+                        if not csv_exists:
+                            writer.writerow(['timestamp', 'text'])
+                            
+                        writer.writerows(entries)
+                    
+                    self.log(f"Added {len(entries)} entries to CSV (unsorted)")
+                except Exception as e:
+                    self.log(f"Error during import: {str(e)}")
+                    
+                    # Save to temp file as last resort
+                    temp_filepath = os.path.join(temp_dir, file_helper.generate_temp_filename())
+                    
+                    try:
+                        with open(temp_filepath, 'w', newline='', encoding='utf-8') as csvfile:
+                            writer = csv.writer(csvfile)
+                            writer.writerow(['timestamp', 'text'])  # Header
+                            writer.writerows(entries)
+                        
+                        self.log(f"Error importing to main file. Data saved to: {temp_filepath}")
+                        messagebox.showwarning(
+                            "Import Warning",
+                            f"An error occurred during import: {e}\n\nYour data has been saved to a temporary file."
+                        )
+                    except Exception as e2:
+                        self.log(f"Critical error: {str(e2)}")
+                        messagebox.showerror(
+                            "Critical Error",
+                            f"Failed to save data to any location: {e2}\n\nYour data could not be imported."
+                        )
+                    return
             
             # Update status
-            valid_count = len(entries)
             self.status_label.config(text=f"Imported {valid_count} entries ({skipped} skipped)")
             
-            messagebox.showinfo("Import Complete", 
-                            f"Successfully imported {valid_count} entries to Z data.csv")
+            messagebox.showinfo(
+                "Import Complete", 
+                f"Successfully imported {valid_count} entries to {DATA_CSV}"
+            )
             
         except Exception as e:
-            self.log(f"Error: {str(e)}")
+            self.log(f"Unexpected error: {str(e)}")
             messagebox.showerror("Import Error", str(e))
 
 def main():
-    root = tk.Tk()
-    app = ZImporter(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        app = ZImporter(root)
+        root.mainloop()
+    except Exception as e:
+        # Last resort error handling
+        try:
+            messagebox.showerror(
+                "Critical Error",
+                f"An unexpected error occurred: {e}\n\nThe application will now close."
+            )
+        except:
+            print(f"Critical error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

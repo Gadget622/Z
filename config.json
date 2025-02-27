@@ -1,6 +1,6 @@
 {
     "files": {
-        "DATA_CSV": "Z data.csv",
+        "DATA_CSV": "Z.csv",
         "TEMP_CSV": "temp.csv",
         "TEMP_TXT": "Z temp.txt"
     },
