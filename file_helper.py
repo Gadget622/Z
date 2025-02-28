@@ -1,13 +1,20 @@
+"""
+File Helper Module
+
+Provides utilities for file operations in the Z application.
+"""
+
 import os
 import re
-import time
 import json
 from datetime import datetime
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 
+
 # Windows disallowed characters in filenames
 INVALID_CHARS = r'[<>:"/\\|?*]'
+
 
 def validate_filename(filename):
     """
@@ -46,6 +53,7 @@ def validate_filename(filename):
     
     return True, filename
 
+
 def prompt_for_filename(parent, title="Enter Filename", message="Please enter a name for the CSV file:"):
     """
     Prompts the user to enter a valid filename.
@@ -69,6 +77,7 @@ def prompt_for_filename(parent, title="Enter Filename", message="Please enter a 
             return result
         else:
             messagebox.showerror("Invalid Filename", result, parent=parent)
+
 
 def update_config_file(key, value, section="files"):
     """
@@ -103,6 +112,7 @@ def update_config_file(key, value, section="files"):
         print(f"Error updating config file: {e}")
         return False
 
+
 def setup_temp_directory():
     """
     Creates a temp directory if it doesn't exist.
@@ -118,6 +128,7 @@ def setup_temp_directory():
         
     return temp_dir
 
+
 def generate_temp_filename():
     """
     Generates a unique filename based on current timestamp.
@@ -126,8 +137,9 @@ def generate_temp_filename():
         str: Unique filename
     """
     now = datetime.now()
-    timestamp = now.strftime("%Y%m%d_%H%M%S_%f")[:-4]  # Keep only centiseconds
+    timestamp = now.strftime("%Y%m%d_%H%M%S_%f")[:-3]  # Keep only milliseconds
     return f"temp_{timestamp}.csv"
+
 
 def get_temp_filepath():
     """
@@ -139,3 +151,42 @@ def get_temp_filepath():
     temp_dir = setup_temp_directory()
     temp_filename = generate_temp_filename()
     return os.path.join(temp_dir, temp_filename)
+
+
+def backup_file(filepath, backup_dir=None):
+    """
+    Create a backup of a file.
+    
+    Args:
+        filepath (str): Path to the file to backup
+        backup_dir (str, optional): Directory to save the backup
+        
+    Returns:
+        str: Path to the backup file or None if backup failed
+    """
+    try:
+        if not os.path.exists(filepath):
+            return None
+        
+        # Use temp directory if no backup dir specified
+        if backup_dir is None:
+            backup_dir = setup_temp_directory()
+        
+        # Make sure backup directory exists
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+        
+        # Create backup filename
+        base_name = os.path.basename(filepath)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"{os.path.splitext(base_name)[0]}_{timestamp}{os.path.splitext(base_name)[1]}"
+        backup_path = os.path.join(backup_dir, backup_filename)
+        
+        # Copy the file
+        import shutil
+        shutil.copy2(filepath, backup_path)
+        
+        return backup_path
+    except Exception as e:
+        print(f"Error creating backup: {e}")
+        return None

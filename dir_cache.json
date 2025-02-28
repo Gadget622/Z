@@ -1,0 +1,242 @@
+{
+    "c:\\Users\\spenc\\Documents\\GitHub\\Z": {
+        "size": 274849,
+        "last_updated": "2025-02-27 22:33:34",
+        "files": {
+            "README.txt": {
+                "size": 160,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "Z.csv": {
+                "size": 50151,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "Z.py": {
+                "size": 7821,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "Z.txt": {
+                "size": 1839,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "checkbox_handler.py": {
+                "size": 9144,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "clean.py": {
+                "size": 13642,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "command_handler.py": {
+                "size": 15195,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "commands.py": {
+                "size": 8983,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "config.json": {
+                "size": 470,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "config.py": {
+                "size": 3462,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "config_manager.py": {
+                "size": 7054,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "data_manager.py": {
+                "size": 10461,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "dir_cache.json": {
+                "size": 3823,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "directory_tree.py": {
+                "size": 30966,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "error_handler.py": {
+                "size": 5044,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "event_handler.py": {
+                "size": 3762,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "file_helper.py": {
+                "size": 5465,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "fix me.csv": {
+                "size": 9990,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "gui_manager.py": {
+                "size": 4238,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "import.py": {
+                "size": 18281,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "multiline_input.py": {
+                "size": 9680,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "open.py": {
+                "size": 9787,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "requirements.txt": {
+                "size": 14,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "shopping list.txt": {
+                "size": 65,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "word_info.py": {
+                "size": 20170,
+                "last_updated": "2025-02-27 22:33:34"
+            },
+            "tree_settings.json": {
+                "size": 470,
+                "last_updated": "2025-02-27 22:33:34"
+            }
+        }
+    },
+    "c:\\Users\\spenc\\Documents\\GitHub\\Z\\txt": {
+        "size": 0,
+        "last_updated": "2025-02-27 22:19:45",
+        "files": {
+            "Actions For Obsidian.txt": {
+                "size": 4232,
+                "last_updated": "2025-02-27 22:33:34"
+            }
+        }
+    },
+    "C:\\Users\\spenc\\Documents\\GitHub\\Z": {
+        "size": 275429,
+        "last_updated": "2025-02-27 22:40:09",
+        "files": {
+            "README.txt": {
+                "size": 160,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "Z.csv": {
+                "size": 50343,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "Z.py": {
+                "size": 7821,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "Z.txt": {
+                "size": 1839,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "checkbox_handler.py": {
+                "size": 9144,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "clean.py": {
+                "size": 13642,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "command_handler.py": {
+                "size": 15195,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "commands.py": {
+                "size": 8983,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "config.json": {
+                "size": 470,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "config.py": {
+                "size": 3462,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "config_manager.py": {
+                "size": 7054,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "data_manager.py": {
+                "size": 10461,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "dir_cache.json": {
+                "size": 5810,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "directory_tree.py": {
+                "size": 30966,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "error_handler.py": {
+                "size": 5044,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "event_handler.py": {
+                "size": 3762,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "file_helper.py": {
+                "size": 5465,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "fix me.csv": {
+                "size": 9990,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "gui_manager.py": {
+                "size": 4238,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "import.py": {
+                "size": 18281,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "multiline_input.py": {
+                "size": 9680,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "open.py": {
+                "size": 9787,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "requirements.txt": {
+                "size": 14,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "shopping list.txt": {
+                "size": 65,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "tree_settings.json": {
+                "size": 470,
+                "last_updated": "2025-02-27 22:40:09"
+            },
+            "word_info.py": {
+                "size": 20170,
+                "last_updated": "2025-02-27 22:40:09"
+            }
+        }
+    },
+    "C:\\Users\\spenc\\Documents\\GitHub\\Z\\txt": {
+        "size": 0,
+        "last_updated": "2025-02-27 22:40:09",
+        "files": {
+            "Actions For Obsidian.txt": {
+                "size": 4232,
+                "last_updated": "2025-02-27 22:40:09"
+            }
+        }
+    }
+}

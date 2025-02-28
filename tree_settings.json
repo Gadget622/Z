@@ -1,0 +1,27 @@
+{
+    "max_dir_size": 1048576,
+    "scan_depth": 3,
+    "file_extensions": [
+        ".py",
+        ".txt",
+        ".md",
+        ".csv",
+        ".json",
+        ".html",
+        ".css",
+        ".js"
+    ],
+    "exclude_dirs": [
+        "__pycache__",
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules"
+    ],
+    "exclude_files": [
+        ".gitignore",
+        ".DS_Store",
+        "Thumbs.db"
+    ],
+    "last_scanned": "2025-02-27 22:26:39"
+}
