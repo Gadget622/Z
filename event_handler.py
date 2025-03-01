@@ -41,6 +41,9 @@ class EventHandler:
             self.app.gui_manager.clear_input()
             return
         
+        # Store the original input for potential recovery
+        original_input = input_text
+        
         # Get command prefixes from config
         slash_prefix = self.app.config.get("SLASH_PREFIX", "/")
         slash_prefix_alt = self.app.config.get("SLASH_PREFIX_ALT", "//")
@@ -55,11 +58,34 @@ class EventHandler:
             else:
                 cmd_text = input_text[len(slash_prefix):]
                 
-            # Handle slash command
-            if self.app.command_handler:
-                self.app.command_handler.process_slash_command(cmd_text, timestamp)
+            # Check if this is a tree command with special path like ".."
+            # which needs special handling to prevent disappearing input
+            if cmd_text.startswith("tree") and (".." in cmd_text or "." in cmd_text):
+                try:
+                    # Process the command and get result
+                    if self.app.command_handler:
+                        result = self.app.command_handler.process_slash_command(cmd_text, timestamp)
+                        
+                        # If command failed, restore input
+                        if not result:
+                            self.app.gui_manager.set_input_text(original_input)
+                            return
+                    else:
+                        self.app.gui_manager.set_feedback("Command system is unavailable")
+                        self.app.gui_manager.set_input_text(original_input)
+                        return
+                except Exception as e:
+                    # If an error occurred, restore input and show error
+                    self.app.error_handler.log_error(f"Error processing tree command: {e}")
+                    self.app.gui_manager.set_feedback(f"Error processing command: {str(e)}")
+                    self.app.gui_manager.set_input_text(original_input)
+                    return
             else:
-                self.app.gui_manager.set_feedback("Command system is unavailable")
+                # Handle normal slash command
+                if self.app.command_handler:
+                    self.app.command_handler.process_slash_command(cmd_text, timestamp)
+                else:
+                    self.app.gui_manager.set_feedback("Command system is unavailable")
         
         # Check if the input is a token command
         elif input_text.startswith(token_prefix):
@@ -90,6 +116,6 @@ class EventHandler:
             self.app.data_manager.write_entry(timestamp, input_text)
             self.app.gui_manager.clear_feedback()
         
-        # Clear the input field
+        # Clear the input field (if we got this far, all went well)
         self.app.gui_manager.clear_input()
         self.app.gui_manager.focus_input()

@@ -6,7 +6,8 @@ Features:
 - Generate tree representation of directories
 - Memory management (limit directory size)
 - Store file contents for quick access
-- Export to Claude Projects format
+- Display total sizes for all directories and files
+- Save tree output to txt directory
 """
 
 import os
@@ -45,7 +46,10 @@ class DirectoryTreeManager:
         if hasattr(app, 'command_handler') and app.command_handler:
             app.command_handler.slash_commands['tree'] = self.cmd_tree
             app.command_handler.slash_commands['dir'] = self.cmd_dir
-            app.command_handler.slash_commands['claude'] = self.cmd_claude
+            
+            # Only register claude command if it's implemented
+            if hasattr(self, 'cmd_claude'):
+                app.command_handler.slash_commands['claude'] = self.cmd_claude
     
     def show_tree(self):
         """Display the directory tree in the GUI."""
@@ -101,7 +105,8 @@ class DirectoryTreeManager:
             "file_extensions": [".py", ".txt", ".md", ".csv", ".json", ".html", ".css", ".js"],
             "exclude_dirs": ["__pycache__", ".git", ".venv", "venv", "node_modules"],
             "exclude_files": [".gitignore", ".DS_Store", "Thumbs.db"],
-            "last_scanned": None      # Timestamp of last scan
+            "last_scanned": None,     # Timestamp of last scan
+            "save_to_txt_dir": True   # Default to saving tree output to txt directory
         }
         
         # Try to load settings from JSON
@@ -115,7 +120,8 @@ class DirectoryTreeManager:
                 # Update default settings with loaded values
                 default_settings.update(loaded_settings)
         except Exception as e:
-            self.app.error_handler.log_error(f"Error loading tree settings: {e}")
+            if hasattr(self, 'app') and hasattr(self.app, 'error_handler'):
+                self.app.error_handler.log_error(f"Error loading tree settings: {e}")
             
         return default_settings
     
@@ -139,8 +145,21 @@ class DirectoryTreeManager:
         Returns:
             str: Generated tree or error message
         """
-        # Parse arguments
-        path = args or self.script_dir
+        # Check for special save flag
+        save_flag = False
+        path = args
+        
+        if args and "--save" in args:
+            save_flag = True
+            path = args.replace("--save", "").strip()
+        
+        # Handle special cases like ".." for parent directory
+        if path == "..":
+            path = os.path.dirname(self.script_dir)
+        elif path == ".":
+            path = self.script_dir
+        elif not path:
+            path = self.script_dir
         
         # Clean path and handle relative paths
         if not os.path.isabs(path):
@@ -162,10 +181,49 @@ class DirectoryTreeManager:
             self.settings["last_scanned"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.save_settings()
             
+            # Save tree output to txt directory if enabled in settings or flag is set
+            if save_flag or self.settings.get("save_to_txt_dir", True):
+                success, message = self.save_tree_to_txt(tree_output, path)
+                if success:
+                    tree_output += "\n" + message
+                else:
+                    tree_output += "\n" + message
+            
             return tree_output
         except Exception as e:
             self.app.error_handler.log_error(f"Error generating tree: {e}")
             return f"Error generating tree: {str(e)}"
+    
+    def save_tree_to_txt(self, tree_output, path):
+        """
+        Save tree output to a file in the txt directory.
+        
+        Args:
+            tree_output (str): The tree output to save
+            path (str): The directory path that was scanned
+            
+        Returns:
+            tuple: (success, message)
+        """
+        try:
+            # Create txt directory if it doesn't exist
+            txt_dir = os.path.join(self.script_dir, "txt")
+            os.makedirs(txt_dir, exist_ok=True)
+            
+            # Generate filename based on the directory name and timestamp
+            dir_name = os.path.basename(path)
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"tree_{dir_name}_{timestamp}.txt"
+            file_path = os.path.join(txt_dir, filename)
+            
+            # Save tree output to file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(tree_output)
+            
+            return True, f"Tree output saved to: txt/{filename}"
+        except Exception as e:
+            self.app.error_handler.log_error(f"Error saving tree output: {e}")
+            return False, f"Error saving tree output: {str(e)}"
     
     def cmd_dir(self, args):
         """
@@ -206,65 +264,30 @@ class DirectoryTreeManager:
             # Scan directories and update cache
             path = option_args or self.script_dir
             return self.scan_directories(path)
-            
-        else:
-            return f"Unknown option: {option}\nAvailable options: clear, info, settings, scan"
-    
-    def handle_dir_command(self, args):
-        """Handle directory tree related commands."""
-        if not args:
-            return "Usage: /dir [refresh|path <directory_path>]"
-        
-        command = args[0].lower()
-        
-        if command == "path":
-            if len(args) < 2:
+
+        elif option == "path":
+            # Change the root directory for the tree
+            if not option_args:
                 return "Please specify a directory path"
-            new_path = " ".join(args[1:])
-            if self.app.directory_tree.set_root_path(new_path):
+            
+            new_path = option_args
+            
+            # Handle special cases like ".." for parent directory
+            if new_path == "..":
+                new_path = os.path.dirname(self.script_dir)
+            elif new_path == ".":
+                new_path = self.script_dir
+            
+            # Check if this is an absolute or relative path
+            if not os.path.isabs(new_path):
+                new_path = os.path.abspath(os.path.join(self.script_dir, new_path))
+            
+            if self.set_root_path(new_path):
                 return f"Directory tree root changed to: {new_path}"
             return f"Failed to change directory to: {new_path}"
-        
-        # ... existing dir commands ...
-
-    def cmd_claude(self, args):
-        """
-        Command to generate Claude Project format.
-        
-        Args:
-            args (str): Options for Claude Project generation
             
-        Returns:
-            str: Result message
-        """
-        if not args:
-            return "Usage: /claude <directory_name> - Generate Claude Project from directory"
-        
-        # Parse arguments
-        parts = args.split(None, 1)
-        dir_name = parts[0]
-        options = parts[1] if len(parts) > 1 else ""
-        
-        # Handle path
-        path = os.path.join(self.script_dir, dir_name)
-        
-        # Check if the directory exists
-        if not os.path.isdir(path):
-            return f"Error: Directory '{dir_name}' not found."
-        
-        # Generate Claude Project
-        try:
-            result = self.generate_claude_project(path)
-            
-            if "output_file" in result:
-                return f"Claude Project generated: {result['output_file']}\n" + \
-                       f"Total files: {result['file_count']}, Size: {self.format_size(result['total_size'])}"
-            else:
-                return f"Error: {result.get('error', 'Unknown error')}"
-                
-        except Exception as e:
-            self.app.error_handler.log_error(f"Error generating Claude Project: {e}")
-            return f"Error generating Claude Project: {str(e)}"
+        else:
+            return f"Unknown option: {option}\nAvailable options: clear, info, settings, scan, path"
     
     def generate_tree(self, root_path, depth=0):
         """
@@ -326,17 +349,26 @@ class DirectoryTreeManager:
             
             # Process directories
             for i, d in enumerate(sorted(dirs)):
+                # Calculate directory size
+                dir_path = os.path.join(root_path, d)
+                dir_size = self.get_directory_size(dir_path)
+                
                 # Use different symbols for the last item
                 is_last = (i == len(dirs) - 1 and not files)
                 prefix = "└── " if is_last else "├── "
                 
-                # Add the directory to the output
-                dir_path = os.path.join(root_path, d)
-                output += "    " * depth + prefix + d + "/\n"
+                # Add the directory to the output with size information
+                output += "    " * depth + prefix + d + "/ " + f"({self.format_size(dir_size)})\n"
                 
                 # Add subdirectories (with proper indentation)
                 sub_prefix = "    " if is_last else "│   "
-                output += self.generate_tree(dir_path, depth + 1)
+                sub_output = self.generate_tree(dir_path, depth + 1)
+                
+                # Properly indent the sub-directory output
+                sub_lines = sub_output.splitlines()
+                for line in sub_lines:
+                    if line:
+                        output += "    " * depth + sub_prefix + line + "\n"
             
             # Process files
             for i, f in enumerate(sorted(files)):
@@ -383,22 +415,25 @@ class DirectoryTreeManager:
         """
         total_size = 0
         
-        for dirpath, dirnames, filenames in os.walk(path):
-            # Remove excluded directories
-            for exclude_dir in self.settings["exclude_dirs"]:
-                if exclude_dir in dirnames:
-                    dirnames.remove(exclude_dir)
+        try:
+            for dirpath, dirnames, filenames in os.walk(path):
+                # Remove excluded directories
+                for exclude_dir in self.settings["exclude_dirs"]:
+                    if exclude_dir in dirnames:
+                        dirnames.remove(exclude_dir)
+                
+                # Add size of all files in the directory
+                for f in filenames:
+                    # Skip excluded files
+                    if f in self.settings["exclude_files"]:
+                        continue
+                        
+                    fp = os.path.join(dirpath, f)
+                    if os.path.exists(fp) and os.path.isfile(fp):
+                        total_size += os.path.getsize(fp)
+        except Exception as e:
+            self.app.error_handler.log_error(f"Error calculating directory size for {path}: {e}")
             
-            # Add size of all files in the directory
-            for f in filenames:
-                # Skip excluded files
-                if f in self.settings["exclude_files"]:
-                    continue
-                    
-                fp = os.path.join(dirpath, f)
-                if os.path.exists(fp) and os.path.isfile(fp):
-                    total_size += os.path.getsize(fp)
-        
         return total_size
     
     def format_size(self, size_bytes):
@@ -459,7 +494,6 @@ class DirectoryTreeManager:
         # Update file entry
         self.dir_cache[dir_path]["files"][file_name] = {
             "size": len(content),
-            "content": content,
             "last_updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         
@@ -484,8 +518,8 @@ class DirectoryTreeManager:
                 for file_name, file_info in dir_info.get("files", {}).items():
                     # Store metadata but not content
                     simplified_cache[dir_path]["files"][file_name] = {
-                        "size": file_info["size"],
-                        "last_updated": file_info["last_updated"]
+                        "size": file_info.get("size", 0),
+                        "last_updated": file_info.get("last_updated", "")
                     }
             
             with open(cache_path, 'w') as f:
@@ -511,6 +545,124 @@ class DirectoryTreeManager:
         
         return {}
     
+    def set_root_path(self, new_path):
+        """Change the root path for directory scanning."""
+        if os.path.exists(new_path) and os.path.isdir(new_path):
+            self.script_dir = os.path.abspath(new_path)
+            self.show_tree()  # Refresh the tree with new path
+            self.app.error_handler.log_info(f"Directory tree root changed to: {new_path}")
+            return True
+        else:
+            self.app.error_handler.log_error(f"Invalid directory path: {new_path}")
+            return False
+    
+    def handle_settings(self, args):
+        """
+        Handle directory tree settings.
+        
+        Args:
+            args (str): Setting arguments
+            
+        Returns:
+            str: Result message
+        """
+        if not args:
+            # Show current settings
+            output = "Directory Tree Settings:\n\n"
+            output += f"Maximum directory size: {self.format_size(self.settings['max_dir_size'])}\n"
+            output += f"Scan depth: {self.settings['scan_depth']}\n"
+            output += f"File extensions: {', '.join(self.settings['file_extensions'])}\n"
+            output += f"Excluded directories: {', '.join(self.settings['exclude_dirs'])}\n"
+            output += f"Excluded files: {', '.join(self.settings['exclude_files'])}\n"
+            output += f"Save to txt directory: {'Enabled' if self.settings.get('save_to_txt_dir', True) else 'Disabled'}\n"
+            
+            return output
+        
+        # Parse setting command
+        parts = args.split(None, 1)
+        setting = parts[0].lower()
+        value = parts[1] if len(parts) > 1 else ""
+        
+        # Handle different settings
+        if setting == "depth":
+            try:
+                depth = int(value)
+                if depth < 1:
+                    return "Error: Depth must be at least 1."
+                
+                self.settings["scan_depth"] = depth
+                self.save_settings()
+                return f"Scan depth set to {depth}."
+            except ValueError:
+                return "Error: Invalid depth value."
+
+        elif setting == "savetotxt":
+            value_lower = value.lower()
+            if value_lower in ["on", "true", "yes", "1"]:
+                self.settings["save_to_txt_dir"] = True
+                self.save_settings()
+                return "Tree output will be saved to txt directory."
+            elif value_lower in ["off", "false", "no", "0"]:
+                self.settings["save_to_txt_dir"] = False
+                self.save_settings()
+                return "Tree output will not be saved to txt directory."
+            else:
+                return "Invalid value. Use 'on' or 'off'."
+        
+        elif setting == "maxsize":
+            try:
+                # Parse size string (e.g., "1MB", "500KB")
+                size_match = re.match(r"(\d+)\s*([KMG]?B)?", value, re.IGNORECASE)
+                if not size_match:
+                    return "Error: Invalid size format. Use format like '1MB' or '500KB'."
+                
+                size_value = int(size_match.group(1))
+                size_unit = size_match.group(2).upper() if size_match.group(2) else "B"
+                
+                # Convert to bytes
+                if size_unit == "KB":
+                    size_bytes = size_value * 1024
+                elif size_unit == "MB":
+                    size_bytes = size_value * 1024 * 1024
+                elif size_unit == "GB":
+                    size_bytes = size_value * 1024 * 1024 * 1024
+                else:
+                    size_bytes = size_value
+                
+                self.settings["max_dir_size"] = size_bytes
+                self.save_settings()
+                return f"Maximum directory size set to {self.format_size(size_bytes)}."
+            except Exception:
+                return "Error: Invalid size value."
+        
+        elif setting == "extensions":
+            # Parse extensions list
+            extensions = [ext.strip() for ext in value.split(",") if ext.strip()]
+            
+            # Ensure all extensions start with a dot
+            extensions = [ext if ext.startswith(".") else f".{ext}" for ext in extensions]
+            
+            self.settings["file_extensions"] = extensions
+            self.save_settings()
+            return f"File extensions set to: {', '.join(extensions)}"
+        
+        elif setting == "exclude":
+            # Parse exclusion list
+            items = [item.strip() for item in value.split(",") if item.strip()]
+            
+            # Check if directories or files
+            if len(parts) > 2 and parts[1].lower() == "dirs":
+                self.settings["exclude_dirs"] = items
+                self.save_settings()
+                return f"Excluded directories set to: {', '.join(items)}"
+            else:
+                self.settings["exclude_files"] = items
+                self.save_settings()
+                return f"Excluded files set to: {', '.join(items)}"
+        
+        else:
+            return f"Unknown setting: {setting}\nAvailable settings: depth, maxsize, extensions, exclude, savetotxt"
+
     def show_cache_status(self):
         """
         Show the status of the directory cache.
@@ -586,103 +738,10 @@ class DirectoryTreeManager:
             output += "Cached files:\n"
             
             for file_name, file_info in sorted(dir_info["files"].items()):
-                output += f"- {file_name} ({self.format_size(file_info['size'])})\n"
+                output += f"- {file_name} ({self.format_size(file_info.get('size', 0))})\n"
         
         return output
-    
-    def handle_settings(self, args):
-        """
-        Handle directory tree settings.
         
-        Args:
-            args (str): Setting arguments
-            
-        Returns:
-            str: Result message
-        """
-        if not args:
-            # Show current settings
-            output = "Directory Tree Settings:\n\n"
-            output += f"Maximum directory size: {self.format_size(self.settings['max_dir_size'])}\n"
-            output += f"Scan depth: {self.settings['scan_depth']}\n"
-            output += f"File extensions: {', '.join(self.settings['file_extensions'])}\n"
-            output += f"Excluded directories: {', '.join(self.settings['exclude_dirs'])}\n"
-            output += f"Excluded files: {', '.join(self.settings['exclude_files'])}\n"
-            
-            return output
-        
-        # Parse setting command
-        parts = args.split(None, 1)
-        setting = parts[0].lower()
-        value = parts[1] if len(parts) > 1 else ""
-        
-        # Handle different settings
-        if setting == "depth":
-            try:
-                depth = int(value)
-                if depth < 1:
-                    return "Error: Depth must be at least 1."
-                
-                self.settings["scan_depth"] = depth
-                self.save_settings()
-                return f"Scan depth set to {depth}."
-            except ValueError:
-                return "Error: Invalid depth value."
-        
-        elif setting == "maxsize":
-            try:
-                # Parse size string (e.g., "1MB", "500KB")
-                size_match = re.match(r"(\d+)\s*([KMG]?B)?", value, re.IGNORECASE)
-                if not size_match:
-                    return "Error: Invalid size format. Use format like '1MB' or '500KB'."
-                
-                size_value = int(size_match.group(1))
-                size_unit = size_match.group(2).upper() if size_match.group(2) else "B"
-                
-                # Convert to bytes
-                if size_unit == "KB":
-                    size_bytes = size_value * 1024
-                elif size_unit == "MB":
-                    size_bytes = size_value * 1024 * 1024
-                elif size_unit == "GB":
-                    size_bytes = size_value * 1024 * 1024 * 1024
-                else:
-                    size_bytes = size_value
-                
-                self.settings["max_dir_size"] = size_bytes
-                self.save_settings()
-                return f"Maximum directory size set to {self.format_size(size_bytes)}."
-            except Exception:
-                return "Error: Invalid size value."
-        
-        elif setting == "extensions":
-            # Parse extensions list
-            extensions = [ext.strip() for ext in value.split(",") if ext.strip()]
-            
-            # Ensure all extensions start with a dot
-            extensions = [ext if ext.startswith(".") else f".{ext}" for ext in extensions]
-            
-            self.settings["file_extensions"] = extensions
-            self.save_settings()
-            return f"File extensions set to: {', '.join(extensions)}"
-        
-        elif setting == "exclude":
-            # Parse exclusion list
-            items = [item.strip() for item in value.split(",") if item.strip()]
-            
-            # Check if directories or files
-            if len(parts) > 2 and parts[1].lower() == "dirs":
-                self.settings["exclude_dirs"] = items
-                self.save_settings()
-                return f"Excluded directories set to: {', '.join(items)}"
-            else:
-                self.settings["exclude_files"] = items
-                self.save_settings()
-                return f"Excluded files set to: {', '.join(items)}"
-        
-        else:
-            return f"Unknown setting: {setting}\nAvailable settings: depth, maxsize, extensions, exclude"
-    
     def scan_directories(self, path):
         """
         Scan directories and update the cache.
@@ -720,108 +779,3 @@ class DirectoryTreeManager:
         except Exception as e:
             self.app.error_handler.log_error(f"Error scanning directory: {e}")
             return f"Error scanning directory: {str(e)}"
-    
-    def set_root_path(self, new_path):
-        """Change the root path for directory scanning."""
-        if os.path.exists(new_path) and os.path.isdir(new_path):
-            self.script_dir = os.path.abspath(new_path)
-            self.show_tree()  # Refresh the tree with new path
-            self.app.error_handler.log_info(f"Directory tree root changed to: {new_path}")
-            return True
-        else:
-            self.app.error_handler.log_error(f"Invalid directory path: {new_path}")
-            return False
-
-    def generate_claude_project(self, path):
-        """
-        Generate a Claude Project from a directory.
-        
-        Args:
-            path (str): Directory path
-            
-        Returns:
-            dict: Result information
-        """
-        # Check directory size
-        dir_size = self.get_directory_size(path)
-        
-        if dir_size > self.settings["max_dir_size"]:
-            return {
-                "error": f"Directory size ({self.format_size(dir_size)}) exceeds maximum allowed size ({self.format_size(self.settings['max_dir_size'])})."
-            }
-        
-        # Create output directory
-        output_dir = os.path.join(self.script_dir, "claude_projects")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Create project file name based on directory name and timestamp
-        dir_name = os.path.basename(path)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = os.path.join(output_dir, f"{dir_name}_claude_project_{timestamp}.md")
-        
-        file_count = 0
-        
-        try:
-            with open(output_file, 'w', encoding='utf-8') as f:
-                # Write project header
-                f.write(f"# Claude Project: {dir_name}\n\n")
-                f.write(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                
-                # Recursively add files
-                file_count = self._add_files_to_claude_project(f, path, "", dir_name)
-            
-            return {
-                "output_file": output_file,
-                "file_count": file_count,
-                "total_size": dir_size
-            }
-        except Exception as e:
-            self.app.error_handler.log_error(f"Error generating Claude Project: {e}")
-            return {"error": str(e)}
-    
-    def _add_files_to_claude_project(self, file, dir_path, prefix, root_name):
-        """
-        Add files to the Claude Project markdown file.
-        
-        Args:
-            file: Output file handle
-            dir_path (str): Current directory path
-            prefix (str): Prefix for display in tree
-            root_name (str): Name of the root directory
-            
-        Returns:
-            int: Number of files added
-        """
-        file_count = 0
-        
-        # Get list of items in the directory
-        items = os.listdir(dir_path)
-        
-        # Sort items: directories first, then files
-        dirs = []
-        files = []
-        
-        for item in items:
-            item_path = os.path.join(dir_path, item)
-            
-            # Skip excluded items
-            if (os.path.isdir(item_path) and item in self.settings["exclude_dirs"]) or \
-               (os.path.isfile(item_path) and item in self.settings["exclude_files"]):
-                continue
-            
-            # Add to appropriate list
-            if os.path.isdir(item_path):
-                dirs.append(item)
-            else:
-                # Only include files with specified extensions
-                ext = os.path.splitext(item)[1].lower()
-                if not self.settings["file_extensions"] or ext in self.settings["file_extensions"]:
-                    files.append(item)
-        
-        # Process directories
-        for d in sorted(dirs):
-            dir_path_full = os.path.join(dir_path, d)
-            
-            # Add directory to output
-            rel_path = os.path.relpath(dir_path_full, os.path.dirname(os.path.join(dir_path, os.pardir, root_name)))
-            file.write(f"\n## Directory: {rel_path}\n\n")

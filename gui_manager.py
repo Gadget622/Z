@@ -109,6 +109,15 @@ class GUIManager:
         """
         return self.input_var.get().strip()
     
+    def set_input_text(self, text):
+        """
+        Set the input field text.
+        
+        Args:
+            text (str): Text to set in the input field
+        """
+        self.input_var.set(text)
+    
     def clear_input(self):
         """Clear the input field."""
         self.input_var.set("")

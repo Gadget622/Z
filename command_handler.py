@@ -85,9 +85,17 @@ class CommandHandler:
             return "Directory tree manager not available"
         
         return f"Unknown directory command: {command}"
-    
+
     def register_enhancement_commands(self):
         """Register commands from enhancement modules."""
+        # Register directory tree commands
+        if hasattr(self.app, 'directory_tree') and self.app.directory_tree:
+            self.slash_commands['tree'] = self.app.directory_tree.cmd_tree
+            self.slash_commands['dir'] = self.app.directory_tree.cmd_dir
+            # Only register claude command if it's implemented
+            if hasattr(self.app.directory_tree, 'cmd_claude'):
+                self.slash_commands['claude'] = self.app.directory_tree.cmd_claude
+        
         # Register checkbox commands
         if hasattr(self.app, 'checkbox_handler') and self.app.checkbox_handler:
             self.slash_commands['toggle'] = self.app.checkbox_handler.cmd_toggle
@@ -103,12 +111,6 @@ class CommandHandler:
         if hasattr(self.app, 'word_info') and self.app.word_info:
             self.slash_commands['word'] = self.app.word_info.cmd_word
             self.slash_commands['words'] = self.app.word_info.cmd_words
-        
-        # Register directory tree commands
-        if hasattr(self.app, 'directory_tree') and self.app.directory_tree:
-            self.slash_commands['tree'] = self.app.directory_tree.cmd_tree
-            self.slash_commands['dir'] = self.app.directory_tree.cmd_dir
-            self.slash_commands['claude'] = self.app.directory_tree.cmd_claude
     
     def process_slash_command(self, cmd_text, timestamp):
         """
