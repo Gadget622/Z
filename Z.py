@@ -91,6 +91,15 @@ class ZApp:
     
     def initialize_enhancements(self):
         """Initialize enhancement modules if available."""
+        # Initialize enhanced input panel
+        self.enhanced_input = None
+        try:
+            from enhanced_input import EnhancedInputPanel
+            self.enhanced_input = EnhancedInputPanel(self)
+            self.error_handler.log_info("Enhanced input panel initialized")
+        except ImportError:
+            self.error_handler.log_info("Enhanced input panel not available")
+            
         # Initialize task manager - should be initialized AFTER gui_manager
         self.task_manager = None
         try:

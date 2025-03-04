@@ -414,3 +414,94 @@ class DataManager:
                 self.app.gui_manager.set_feedback("WARNING: Could not save entry to any storage location!")
                 self.app.error_handler.log_error(f"Critical storage error: {e2}")
                 return False
+    
+    def write_entry_with_metadata(self, timestamp, text, metadata=None):
+        """
+        Write an entry to the CSV file with metadata for multiple columns.
+        
+        Args:
+            timestamp (str): Entry timestamp
+            text (str): Entry text (for backward compatibility)
+            metadata (dict): Dictionary of column name -> value pairs
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # First, try to recover any entries from temp files
+            self.recover_temp_entries()
+            
+            # Default metadata to empty dict
+            metadata = metadata or {}
+            
+            # Ensure text is included in metadata if provided
+            if text and 'text' not in metadata:
+                metadata['text'] = text
+            
+            # Read existing CSV to get columns
+            try:
+                if os.path.exists(self.csv_filename):
+                    df = pd.read_csv(self.csv_filename)
+                    
+                    # Check if new columns need to be added
+                    for column in metadata.keys():
+                        if column not in df.columns and column != 'timestamp':
+                            # Add new column with null values
+                            df[column] = None
+                            self.app.error_handler.log_info(f"Added '{column}' column to CSV file")
+                    
+                    # Write updated DataFrame back to CSV
+                    df.to_csv(self.csv_filename, index=False)
+                    columns = df.columns.tolist()
+                else:
+                    # CSV doesn't exist, create it with headers
+                    columns = ['timestamp'] + list(metadata.keys())
+                    with open(self.csv_filename, 'w', newline='') as csvfile:
+                        writer = csv.writer(csvfile)
+                        writer.writerow(columns)
+            except Exception as e:
+                self.app.error_handler.log_error(f"Error preparing CSV columns: {e}")
+                # If we can't read the file, assume basic columns
+                columns = ['timestamp', 'text']
+            
+            # Create a row with all columns
+            row = [timestamp]
+            
+            # Add metadata columns (excluding timestamp which is already added)
+            for column in columns[1:]:  # Skip timestamp
+                row.append(metadata.get(column, ''))
+            
+            # Write the row to CSV
+            with open(self.csv_filename, 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(row)
+            
+            return True
+        
+        except Exception as e:
+            self.app.error_handler.log_error(f"Error writing entry with metadata: {e}")
+            
+            # Try to save to a temp file as last resort
+            try:
+                temp_filepath = self.get_temp_filepath()
+                
+                with open(temp_filepath, 'w', newline='') as temp_file:
+                    temp_writer = csv.writer(temp_file)
+                    # Write header with all columns
+                    header = ['timestamp'] + list(metadata.keys())
+                    temp_writer.writerow(header)
+                    # Write data row
+                    data_row = [timestamp] + list(metadata.values())
+                    temp_writer.writerow(data_row)
+                
+                self.app.gui_manager.set_feedback(
+                    f"Entry saved to temporary storage. Main file ({self.app.config.get('DATA_CSV')}) is unavailable."
+                )
+                
+                return False
+                    
+            except Exception as e2:
+                # Both main file and temp directory are inaccessible
+                self.app.gui_manager.set_feedback("WARNING: Could not save entry to any storage location!")
+                self.app.error_handler.log_error(f"Critical storage error: {e2}")
+                return False
