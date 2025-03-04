@@ -39,18 +39,18 @@ class DataManager:
         self.temp_dir = os.path.join(self.script_dir, "temp")
         if not os.path.exists(self.temp_dir):
             os.makedirs(self.temp_dir)
-    
     def ensure_csv_exists(self):
         """Ensure the CSV file exists with proper headers."""
         try:
             if not os.path.exists(self.csv_filename):
                 with open(self.csv_filename, 'w', newline='') as csvfile:
                     writer = csv.writer(csvfile)
-                    writer.writerow(['timestamp', 'text'])
+                    writer.writerow(['timestamp', 'text', 'task'])  # Add 'task' to headers
         except Exception as e:
             self.app.gui_manager.set_feedback(f"Could not create or access the data file: {e}")
-            self.app.error_handler.log_error(f"Data file creation error: {e}")
-    
+            self.app.error_handler.log_error(f"Data file creation error: {e}")    
+
+
     def get_timestamp(self):
         """
         Get formatted timestamp.
@@ -62,13 +62,15 @@ class DataManager:
         weekday = now.strftime("%a").upper()
         return now.strftime(f"%Y-%m-%d {weekday} %H:%M:%S.%f")[:-4]
     
-    def write_entry(self, timestamp, text):
+
+    def write_entry(self, timestamp, text, task=None):
         """
         Write an entry to the CSV file.
         
         Args:
             timestamp (str): Entry timestamp
             text (str): Entry text
+            task (int, optional): Task flag (0 or 1 or None)
             
         Returns:
             bool: True if successful, False otherwise
@@ -77,14 +79,29 @@ class DataManager:
             # First, try to recover any entries from temp files
             self.recover_temp_entries()
             
+            # Ensure CSV file exists with correct headers
+            if not os.path.exists(self.csv_filename):
+                self.ensure_csv_exists()
+            
+            # Check if CSV has task column
+            try:
+                df = pd.read_csv(self.csv_filename)
+                if 'task' not in df.columns:
+                    # Add task column header without populating values
+                    df['task'] = None
+                    df.to_csv(self.csv_filename, index=False)
+            except Exception:
+                # File might be empty or not exist, handled by the write operation below
+                pass
+            
             # Try to write to main CSV
             with open(self.csv_filename, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow([timestamp, text])
+                writer.writerow([timestamp, text, task if task is not None else ''])
             
             # If we get here, writing was successful
             return True
-            
+                
         except Exception as e:
             self.app.error_handler.log_error(f"Error writing to CSV: {e}")
             
@@ -94,21 +111,22 @@ class DataManager:
                 
                 with open(temp_filepath, 'w', newline='') as temp_file:
                     temp_writer = csv.writer(temp_file)
-                    temp_writer.writerow(['timestamp', 'text'])  # Header
-                    temp_writer.writerow([timestamp, text])
+                    temp_writer.writerow(['timestamp', 'text', 'task'])  # Include task column
+                    temp_writer.writerow([timestamp, text, task if task is not None else ''])
                 
                 self.app.gui_manager.set_feedback(
                     f"Entry saved to temporary storage. Main file ({self.app.config.get('DATA_CSV')}) is unavailable."
                 )
                 
                 return False
-                
+                    
             except Exception as e2:
                 # Both main file and temp directory are inaccessible
                 self.app.gui_manager.set_feedback("WARNING: Could not save entry to any storage location!")
                 self.app.error_handler.log_error(f"Critical storage error: {e2}")
                 return False
-    
+
+
     def recover_temp_entries(self):
         """
         Attempt to recover entries from temporary files and merge them into the main CSV file.
@@ -309,3 +327,90 @@ class DataManager:
         except Exception as e:
             self.app.error_handler.log_error(f"Error searching entries: {e}")
             return []
+        
+    def write_entry_with_metadata(self, timestamp, text, metadata=None):
+        """
+        Write an entry to the CSV file with arbitrary metadata.
+        
+        Args:
+            timestamp (str): Entry timestamp
+            text (str): Entry text
+            metadata (dict, optional): Dictionary of column name -> value pairs
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # First, try to recover any entries from temp files
+            self.recover_temp_entries()
+            
+            # Default metadata to empty dict
+            metadata = metadata or {}
+            
+            # Read existing CSV to get columns
+            try:
+                if os.path.exists(self.csv_filename):
+                    df = pd.read_csv(self.csv_filename)
+                    
+                    # Check if new columns need to be added
+                    for column in metadata.keys():
+                        if column not in df.columns:
+                            # Add new column with null values
+                            df[column] = None
+                            self.app.error_handler.log_info(f"Added '{column}' column to CSV file")
+                    
+                    # Write updated DataFrame back to CSV
+                    df.to_csv(self.csv_filename, index=False)
+                    columns = df.columns.tolist()
+                else:
+                    # CSV doesn't exist, create it with headers
+                    columns = ['timestamp', 'text'] + list(metadata.keys())
+                    with open(self.csv_filename, 'w', newline='') as csvfile:
+                        writer = csv.writer(csvfile)
+                        writer.writerow(columns)
+            except Exception as e:
+                self.app.error_handler.log_error(f"Error preparing CSV columns: {e}")
+                # If we can't read the file, assume basic columns
+                columns = ['timestamp', 'text']
+            
+            # Create a row with all columns
+            row = [timestamp, text]
+            
+            # Add metadata columns
+            for column in columns[2:]:  # Skip timestamp and text
+                row.append(metadata.get(column, ''))
+            
+            # Write the row to CSV
+            with open(self.csv_filename, 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(row)
+            
+            return True
+        
+        except Exception as e:
+            self.app.error_handler.log_error(f"Error writing entry with metadata: {e}")
+            
+            # Try to save to a temp file as last resort
+            try:
+                temp_filepath = self.get_temp_filepath()
+                
+                with open(temp_filepath, 'w', newline='') as temp_file:
+                    temp_writer = csv.writer(temp_file)
+                    # Write header with all columns
+                    header = ['timestamp', 'text'] + list(metadata.keys())
+                    temp_writer.writerow(header)
+                    # Write data row
+                    data_row = [timestamp, text] + list(metadata.values())
+                    temp_writer.writerow(data_row)
+                
+                self.app.gui_manager.set_feedback(
+                    f"Entry saved to temporary storage. Main file ({self.app.config.get('DATA_CSV')}) is unavailable."
+                )
+                
+                return False
+                    
+            except Exception as e2:
+                # Both main file and temp directory are inaccessible
+                self.app.gui_manager.set_feedback("WARNING: Could not save entry to any storage location!")
+                self.app.error_handler.log_error(f"Critical storage error: {e2}")
+                return False

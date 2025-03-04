@@ -12,6 +12,13 @@ import sys
 import time
 import threading
 
+try:
+    from tasks import TaskManager, TaskListDisplay
+except ImportError:
+    # TaskManager and TaskListDisplay are optional
+    TaskManager = None
+    TaskListDisplay = None
+
 # Import core modules with better error handling
 try:
     from . import config_manager
@@ -84,6 +91,25 @@ class ZApp:
     
     def initialize_enhancements(self):
         """Initialize enhancement modules if available."""
+        # Initialize task manager - should be initialized AFTER gui_manager
+        self.task_manager = None
+        try:
+            from tasks import TaskManager
+            self.task_manager = TaskManager(self)
+            self.error_handler.log_info("Task manager initialized")
+        except ImportError:
+            self.error_handler.log_info("Task manager not available")
+        
+        # Add task list display AFTER task_manager initialization
+        self.task_list_display = None
+        try:
+            if self.task_manager:  # Only initialize if task_manager is available
+                from tasks import TaskListDisplay
+                self.task_list_display = TaskListDisplay(self)
+                self.error_handler.log_info("Task list display initialized")
+        except ImportError:
+            self.error_handler.log_info("Task list display not available")
+
         # Initialize checkbox handler
         self.checkbox_handler = None
         try:
