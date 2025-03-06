@@ -76,6 +76,11 @@ class ZApp:
             
             # Initialize enhancement modules last
             self.initialize_enhancements()
+
+            # Create separate windows for components
+            # Currently experiencing issues with this feature.
+            # There's an issue with moving existing widgets to new windows. Tkinter has limitations when moving widgets between parent windows after they've been created. 
+            # self.create_separate_windows()
             
             # Set up periodic entries if enabled
             self.setup_periodic_entries()
@@ -223,6 +228,43 @@ class ZApp:
             self.root.mainloop()
         except Exception as e:
             self.error_handler.handle_critical_error(f"Unexpected error in main loop: {e}")
+
+    def create_separate_windows(self):
+        """Create separate windows for major UI components."""
+        
+        # Only proceed if the components exist
+        if not hasattr(self, 'directory_tree') or not hasattr(self, 'task_list_display'):
+            self.error_handler.log_warning("Cannot create separate windows: required components missing")
+            return
+        
+        # 1. Create Directory Tree Window
+        self.dir_tree_window = tk.Toplevel(self.root)
+        self.dir_tree_window.title("Z - Directory Tree")
+        self.dir_tree_window.geometry("400x600")
+        
+        # Move directory tree frame to the new window
+        if hasattr(self.directory_tree, 'tree_frame'):
+            self.directory_tree.tree_frame.grid_remove()  # Remove from current grid
+            self.directory_tree.tree_frame.grid(row=0, column=0, sticky='nsew', in_=self.dir_tree_window)
+            self.dir_tree_window.grid_columnconfigure(0, weight=1)
+            self.dir_tree_window.grid_rowconfigure(0, weight=1)
+        
+        # 2. Create Task List Window
+        self.task_window = tk.Toplevel(self.root)
+        self.task_window.title("Z - Task List")
+        self.task_window.geometry("500x400")
+        
+        # Move task list frame to the new window
+        if hasattr(self.task_list_display, 'frame'):
+            self.task_list_display.frame.grid_remove()  # Remove from current grid
+            self.task_list_display.frame.grid(row=0, column=0, sticky='nsew', in_=self.task_window)
+            self.task_window.grid_columnconfigure(0, weight=1)
+            self.task_window.grid_rowconfigure(0, weight=1)
+        
+        # 3. Adjust main window to hold only the input section
+        # Reconfigure main window now that components have been moved
+        self.root.geometry("600x200")
+        self.root.title("Z - Input")
 
 
 def main():

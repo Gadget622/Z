@@ -13,4 +13,4 @@ logs
 dir_cache
 csv
 json
-
+private/

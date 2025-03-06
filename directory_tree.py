@@ -499,13 +499,15 @@ class DirectoryTreeManager:
         
         # Save the updated cache
         self.save_dir_cache()
-    
+
+            
     def save_dir_cache(self):
         """Save the directory cache to a file"""
-        cache_path = os.path.join(self.script_dir, "dir_cache.json")
+        # Create private directory
+        private_dir = self.ensure_private_dir()
+        cache_path = os.path.join(private_dir, "dir_cache.json")
         
         try:
-            # Create a copy without file contents for storage efficiency
             simplified_cache = {}
             
             for dir_path, dir_info in self.dir_cache.items():
@@ -521,20 +523,17 @@ class DirectoryTreeManager:
                         "size": file_info.get("size", 0),
                         "last_updated": file_info.get("last_updated", "")
                     }
-            
+        
             with open(cache_path, 'w') as f:
                 json.dump(simplified_cache, f, indent=4)
         except Exception as e:
             self.app.error_handler.log_error(f"Error saving directory cache: {e}")
-    
+
     def load_dir_cache(self):
-        """
-        Load the directory cache from file.
-        
-        Returns:
-            dict: The directory cache
-        """
-        cache_path = os.path.join(self.script_dir, "dir_cache.json")
+        """Load the directory cache from file."""
+        # Create private directory
+        private_dir = self.ensure_private_dir()
+        cache_path = os.path.join(private_dir, "dir_cache.json")
         
         if os.path.exists(cache_path):
             try:
@@ -779,3 +778,10 @@ class DirectoryTreeManager:
         except Exception as e:
             self.app.error_handler.log_error(f"Error scanning directory: {e}")
             return f"Error scanning directory: {str(e)}"
+        
+    def ensure_private_dir(self):
+        """Create the private directory if it doesn't exist."""
+        private_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "private")
+        os.makedirs(private_dir, exist_ok=True)
+        return private_dir
+    

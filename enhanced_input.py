@@ -88,21 +88,28 @@ class EnhancedInputPanel:
             entry = ttk.Entry(field_frame, textvariable=input_var, width=40)
             entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
             
+            # Lock checkbox - to prevent clearing the input on submit
+            lock_var = tk.BooleanVar(value=False)
+            lock_checkbox = ttk.Checkbutton(field_frame, variable=lock_var, text="Lock")
+            lock_checkbox.pack(side=tk.RIGHT, padx=5)
+            
             # Store all components for this field
             field_data = {
                 'active_var': active_var,
                 'column_var': column_var,
                 'input_var': input_var,
+                'lock_var': lock_var,  # Add the lock variable
                 'checkbox': checkbox,
                 'dropdown': dropdown,
                 'entry': entry,
+                'lock_checkbox': lock_checkbox,  # Add the lock checkbox
                 'frame': field_frame,
-                'index': i  # Store the index for reference
+                'index': i
             }
             
             self.fields.append(field_data)
             
-            # Fix for lambda scoping issue - use a function to create proper bindings
+            # Create bindings
             def create_bindings(field_index):
                 self.fields[field_index]['dropdown'].bind('<<ComboboxSelected>>', 
                                                           lambda event, idx=field_index: self.on_dropdown_changed(idx))
@@ -237,9 +244,10 @@ class EnhancedInputPanel:
         # Write to CSV using metadata approach
         self.app.data_manager.write_entry_with_metadata(timestamp, data.get('text', ''), data)
         
-        # Clear input fields
+        # Clear input fields that are not locked
         for field in self.fields:
-            field['input_var'].set('')
+            if not field['lock_var'].get():  # Only clear if not locked
+                field['input_var'].set('')
         
         # Focus the first active field
         for field in self.fields:
@@ -250,7 +258,7 @@ class EnhancedInputPanel:
         # Show feedback
         columns = [k for k in data.keys() if k != 'timestamp']
         self.app.gui_manager.set_feedback(f"Added entry with columns: {', '.join(columns)}")
-    
+
     def create_new_column(self):
         """Create a new column in the CSV file."""
         # Create a simple dialog to get the column name
@@ -329,3 +337,4 @@ class EnhancedInputPanel:
         x = self.app.root.winfo_x() + (self.app.root.winfo_width() - dialog.winfo_width()) // 2
         y = self.app.root.winfo_y() + (self.app.root.winfo_height() - dialog.winfo_height()) // 2
         dialog.geometry(f"+{x}+{y}")
+
